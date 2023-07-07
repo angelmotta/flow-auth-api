@@ -1,9 +1,12 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"google.golang.org/api/idtoken"
 	"log"
 	"net/http"
 )
@@ -39,6 +42,21 @@ type loginGoogleRequest struct {
 	Credential string `json:"credential"`
 }
 
+func (a *AuthServer) isValidGoogleIdToken(tokenId string) (bool, string) {
+	// Verify the ID token, including the expiry, signature, issuer, and audience.
+	tokenPayload, err := idtoken.Validate(context.Background(), tokenId, "535433429806-oc8egpmgdvuot4bic0pc900q3pl3i7rv.apps.googleusercontent.com")
+	if err != nil {
+		log.Println("Invalid token")
+		log.Println(err)
+		return false, ""
+	}
+
+	// Valid Token, you can use the token to get user information.
+	fmt.Println("Token verified successfully.")
+	email := tokenPayload.Claims["email"].(string)
+	return true, email
+}
+
 func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
 	// Unmarshal body request into loginGoogleRequest struct
 	var request loginGoogleRequest
@@ -60,12 +78,15 @@ func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
 	tokenId := request.Credential
 	log.Println("tokenId:", tokenId)
 
-	// Validate token Id using Google auth api
-	// If token is valid, return access token
+	// Validate tokenId using Google auth library client
+	isValid, email := a.isValidGoogleIdToken(tokenId)
+	if !isValid {
+		http.Error(w, "invalid credential", http.StatusBadRequest)
+		return
+	}
+	log.Println("Token is valid: ", email)
 
-	// If token is invalid, return error
-
-	// Create access token App
+	// Create access token FlowApp
 
 	// Return status
 	w.Header().Set("Content-Type", "application/json")
