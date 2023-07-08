@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/angelmotta/flow-auth-api/internal/authdb"
 	"github.com/angelmotta/flow-auth-api/internal/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -17,8 +18,9 @@ import (
 )
 
 type AuthServer struct {
-	Router *chi.Mux
-	Config *config.Config
+	Router       *chi.Mux
+	Config       *config.Config
+	AuthDBClient *authdb.Authdb
 }
 
 type MyCustomClaims struct {
@@ -37,7 +39,12 @@ type loginGoogleResponse struct {
 	Role  string `json:"role"`
 }
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
 func NewAuthServer() *AuthServer {
+	log.Println("Setting AuthServer...")
 	// Prepare router
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -57,11 +64,16 @@ func NewAuthServer() *AuthServer {
 	a := &AuthServer{
 		Router: r,
 		Config: globalConfig,
+		//AuthDBClient not yet initialized
 	}
-
-	// Register routes for AuthServer
+	// Setup DB connection and assign it to AuthServer
+	mongoUser := a.Config.MongoUser
+	mongoPass := a.Config.MongoPass
+	dbConn := authdb.New(mongoUser, mongoPass)
+	a.AuthDBClient = dbConn
+	// Register routes into AuthServer
 	a.routes()
-
+	log.Println("AuthServer configured successfully.")
 	return a
 }
 
