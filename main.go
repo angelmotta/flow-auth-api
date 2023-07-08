@@ -7,11 +7,9 @@ import (
 )
 
 func main() {
-	log.Println("Start authServer flowApp")
-
 	// Create authServer
 	a := app.NewAuthServer()
-
+	log.Printf("Start flowApp-authServer at port %v", a.Config.HttpAddr)
 	// Run http server
-	log.Fatal(http.ListenAndServe(":8080", a.Router))
+	log.Fatal(http.ListenAndServe(a.Config.HttpAddr, a.Router))
 }
