@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
 	"google.golang.org/api/idtoken"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -138,26 +139,35 @@ func (a *AuthServer) verifyFlowAppToken(tokenString string) (*MyCustomClaims, er
 	}
 }
 
-func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
-	// Start: Extract token from body request
+func getTokenFromRequest(bodyRequest io.ReadCloser) (string, error) {
 	// Unmarshal body request into loginGoogleRequest struct
+	log.Println(`getTokenFromRequest`)
 	var request loginGoogleRequest
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(bodyRequest)
 	dec.DisallowUnknownFields()
 	err := dec.Decode(&request) // set data into 'request' struct
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return "", err
 	}
 	// Input validation: check if credential field is empty
 	if request.Credential == "" {
-		http.Error(w, "credential field is required", http.StatusBadRequest)
-		return
+		// Generate an Error
+		return "", errors.New("credential field is required")
 	}
 	// get tokenId from request
 	tokenId := request.Credential
 	log.Println("tokenId:", tokenId)
-	// End: Extract token from body request
+
+	return tokenId, nil
+}
+
+func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
+	// Get tokenId from request
+	tokenId, err := getTokenFromRequest(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Validate tokenId using Google auth library client
 	isValid, email := a.isValidGoogleIdToken(tokenId)
@@ -167,7 +177,11 @@ func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("Token is valid: ", email)
 
-	// Create access token FlowApp
+	// TODO: check if user is already registered in DB
+	// If customer is not registered (TBD: return error or automatically register it)
+
+	// If customer is already registered, generate token and send it back
+	// Create custom access token from FlowApp
 	token, err := a.generateToken(email)
 	// Prepare response
 	response := loginGoogleResponse{
