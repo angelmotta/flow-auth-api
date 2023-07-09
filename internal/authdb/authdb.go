@@ -14,6 +14,10 @@ type Authdb struct {
 	mongoCli *mongo.Client
 }
 
+type User struct {
+	Email string
+}
+
 func New(dbUser, dbPass string) *Authdb {
 	// Get client MongoDB
 	uriMongoDB := "mongodb+srv://" + dbUser + ":" + dbPass + "@cluster0.jqgmumw.mongodb.net/?retryWrites=true&w=majority"
@@ -34,8 +38,8 @@ func New(dbUser, dbPass string) *Authdb {
 	}
 }
 
-// GetOneUser retrieve a user document from MongoDB
-func (a *Authdb) GetOneUser(email string) (bson.M, error) {
+// GetUser retrieve a user document from MongoDB
+func (a *Authdb) GetUser(email string) (bson.M, error) {
 	var result bson.M
 	collection := a.mongoCli.Database("usersdb").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -52,4 +56,21 @@ func (a *Authdb) GetOneUser(email string) (bson.M, error) {
 	log.Println("Found a single document:")
 	log.Println(result)
 	return result, nil
+}
+
+// CreateUser create a user document in MongoDB
+func (a *Authdb) CreateUser(email string) error {
+	user := User{Email: email}
+	collection := a.mongoCli.Database("usersdb").Collection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res, err := collection.InsertOne(ctx, user)
+	if err != nil {
+		log.Printf("Error creating user: %v", err)
+		return err
+	}
+	log.Printf("User created successfully with id: %v", res.InsertedID)
+	log.Println(res)
+	return nil
 }

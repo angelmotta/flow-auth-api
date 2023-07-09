@@ -33,7 +33,7 @@ type loginGoogleRequest struct {
 	Credential string `json:"credential"`
 }
 
-type loginGoogleResponse struct {
+type loginResponse struct {
 	Token string `json:"token"`
 	Email string `json:"email"`
 	Role  string `json:"role"`
@@ -177,26 +177,47 @@ func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
 	// Get tokenId from request
 	tokenId, err := getTokenFromRequest(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		errRes := errorResponse{
+			Error: err.Error(),
+		}
+		sendJsonResponse(w, errRes, http.StatusBadRequest)
 		return
 	}
 
 	// Validate tokenId using Google auth library client
 	isValid, email := a.isValidGoogleIdToken(tokenId)
 	if !isValid {
-		http.Error(w, "invalid credential", http.StatusUnauthorized)
+		errRes := errorResponse{
+			Error: "invalid credential",
+		}
+		sendJsonResponse(w, errRes, http.StatusUnauthorized)
 		return
 	}
 	log.Println("Token is valid: ", email)
 
-	// TODO: check if user is already registered in DB
-	// If customer is not registered (TBD: return error or automatically register it)
+	// Check user in DB
+	// If customer is not registered respond with error (Go to register flow)
+	userResult, err := a.AuthDBClient.GetUser(email)
+	if err != nil {
+		errRes := errorResponse{
+			Error: "Servicio no disponible",
+		}
+		sendJsonResponse(w, errRes, http.StatusInternalServerError)
+		return
+	}
+	if userResult == nil {
+		errRes := errorResponse{
+			Error: "Usuario no registrado",
+		}
+		sendJsonResponse(w, errRes, http.StatusNotFound)
+		return
+	}
 
-	// If customer is already registered, generate token and send it back
+	// If user exists, generate token
 	// Create custom access token from FlowApp
 	token, err := a.generateToken(email)
 	// Prepare response
-	response := loginGoogleResponse{
+	response := loginResponse{
 		Token: token,
 		Email: email,
 		Role:  "customer", // retrieved from DB
@@ -256,6 +277,83 @@ func (a *AuthServer) handleAuthorization(w http.ResponseWriter, r *http.Request)
 	_, err = w.Write(resJson)
 	if err != nil {
 		log.Printf("Error sending response to client: %v", err.Error())
+		return
+	}
+}
+
+func (a *AuthServer) handleSignup(w http.ResponseWriter, r *http.Request) {
+	// Get tokenId from request
+	tokenId, err := getTokenFromRequest(r.Body)
+	if err != nil {
+		errRes := errorResponse{
+			Error: err.Error(),
+		}
+		sendJsonResponse(w, errRes, http.StatusBadRequest)
+		return
+	}
+
+	// Validate tokenId using Google auth library client
+	isValid, email := a.isValidGoogleIdToken(tokenId)
+	if !isValid {
+		errRes := errorResponse{
+			Error: "invalid credential",
+		}
+		sendJsonResponse(w, errRes, http.StatusUnauthorized)
+		return
+	}
+	log.Println("Token is valid: ", email)
+
+	// Check user in DB
+	// Validate if customer is already registered (respond error message)
+	userResult, err := a.AuthDBClient.GetUser(email)
+	if err != nil {
+		errRes := errorResponse{
+			Error: "Servicio no disponible",
+		}
+		sendJsonResponse(w, errRes, http.StatusInternalServerError)
+		return
+	}
+	if userResult != nil {
+		errRes := errorResponse{
+			Error: "Usuario ya registrado",
+		}
+		sendJsonResponse(w, errRes, http.StatusConflict)
+		return
+	}
+	// Register new user
+	err = a.AuthDBClient.CreateUser(email) // insert new user in DB
+	if err != nil {
+		errRes := errorResponse{
+			Error: "Servicio no disponible",
+		}
+		sendJsonResponse(w, errRes, http.StatusInternalServerError)
+		return
+	}
+
+	// Prepare response to user
+	token, err := a.generateToken(email)
+	response := loginResponse{
+		Token: token,
+		Email: email,
+		Role:  "customer", // retrieved from DB
+	}
+	sendJsonResponse(w, response, http.StatusOK)
+}
+
+func sendJsonResponse(w http.ResponseWriter, response interface{}, statusCode int) {
+	responseJson, err := json.Marshal(response)
+	if err != nil {
+		// Marshal error (internal server error)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Set headers
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	// Write Json response
+	_, err = w.Write(responseJson)
+	if err != nil {
+		log.Printf("Error sending response: %v", err.Error())
 		return
 	}
 }

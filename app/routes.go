@@ -4,4 +4,5 @@ package app
 func (a *AuthServer) routes() {
 	a.Router.Post("/api/auth/login/google", a.handleLoginGoogle)
 	a.Router.Post("/api/auth/login/token", a.handleAuthorization)
+	a.Router.Post("/api/auth/signup", a.handleSignup)
 }
