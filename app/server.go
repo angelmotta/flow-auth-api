@@ -43,14 +43,6 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-type SignupUserRequest struct {
-	Dni       string `json:"dni"`
-	Nombre    string `json:"nombre"`
-	Apellidop string `json:"apellidop"`
-	Apellidom string `json:"apellidom"`
-	Direccion string `json:"direccion"`
-}
-
 func NewAuthServer() *AuthServer {
 	log.Println("Setting AuthServer...")
 	// Prepare router
@@ -341,37 +333,36 @@ func (a *AuthServer) handleSignup(w http.ResponseWriter, r *http.Request) {
 // handleSignupUser handles http request to register a new customer
 func (a *AuthServer) handleSignupUser(w http.ResponseWriter, r *http.Request) {
 	// Get tokenId from authorization header
-	/*
-		tokenId := r.Header.Get("Authorization")
-		if tokenId == "" {
-			errRes := errorResponse{
-				Error: "token is required",
-			}
-			sendJsonResponse(w, errRes, http.StatusBadRequest)
-			return
-		}
-
-		// Validate tokenId using Google auth library client
-		isValid, email := a.isValidGoogleIdToken(tokenId)
-		if !isValid {
-			errRes := errorResponse{
-				Error: "invalid credential",
-			}
-			sendJsonResponse(w, errRes, http.StatusUnauthorized)
-			return
-		}
-		log.Println("Google IdToken is valid for: ", email)
-	*/
-	// Only for test
-	email := r.Header.Get("email")
-	if email == "" {
+	tokenId := r.Header.Get("Authorization")
+	if tokenId == "" {
 		errRes := errorResponse{
-			Error: "email field in header is required",
+			Error: "token is required",
 		}
 		sendJsonResponse(w, errRes, http.StatusBadRequest)
 		return
 	}
 
+	// Validate tokenId using Google auth library client
+	isValid, email := a.isValidGoogleIdToken(tokenId)
+	if !isValid {
+		errRes := errorResponse{
+			Error: "invalid credential",
+		}
+		sendJsonResponse(w, errRes, http.StatusUnauthorized)
+		return
+	}
+	log.Println("Google IdToken is valid for: ", email)
+	// Only for test
+	/*
+		email := r.Header.Get("email")
+		if email == "" {
+			errRes := errorResponse{
+				Error: "email field in header is required",
+			}
+			sendJsonResponse(w, errRes, http.StatusBadRequest)
+			return
+		}
+	*/
 	// Validate if email is available to use in DB
 	userResult, err := a.AuthDBClient.GetUser(email)
 	if err != nil {
@@ -390,7 +381,7 @@ func (a *AuthServer) handleSignupUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get request from body and unmarshall into User struct
-	var userRequest SignupUserRequest
+	var userRequest authdb.UserInfo
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	err = dec.Decode(&userRequest)
@@ -403,7 +394,7 @@ func (a *AuthServer) handleSignupUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Validate userRequest struct
-	log.Printf("User: %v", userRequest)
+	log.Printf("Received UserInfo: %v", userRequest)
 	err = validateSignupRequest(userRequest)
 	if err != nil {
 		errRes := errorResponse{
@@ -413,17 +404,21 @@ func (a *AuthServer) handleSignupUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/*
-		// Register new userRequest
-		err = a.AuthDBClient.CreateUser(userRequest) // insert new userRequest in DB
-		if err != nil {
-			errRes := errorResponse{
-				Error: "Servicio no disponible",
-			}
-			sendJsonResponse(w, errRes, http.StatusInternalServerError)
-			return
+	// Register new user in DB
+	u := authdb.User{
+		Email:    email,
+		Role:     "customer",
+		UserInfo: userRequest,
+	}
+	log.Printf("Registering new user in DB: %v", u)
+	err = a.AuthDBClient.CreateUser(u) // insert new userRequest in DB
+	if err != nil {
+		errRes := errorResponse{
+			Error: "Servicio no disponible",
 		}
-	*/
+		sendJsonResponse(w, errRes, http.StatusInternalServerError)
+		return
+	}
 	// Prepare response to userRequest
 	token, err := a.generateToken(email)
 	response := loginResponse{
@@ -452,7 +447,7 @@ func sendJsonResponse(w http.ResponseWriter, response interface{}, statusCode in
 	}
 }
 
-func validateSignupRequest(user SignupUserRequest) error {
+func validateSignupRequest(user authdb.UserInfo) error {
 	// create null Error
 	var err error
 	if user.Nombre == "" {

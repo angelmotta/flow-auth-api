@@ -14,20 +14,19 @@ type Authdb struct {
 	mongoCli *mongo.Client
 }
 
-type User struct {
-	Email     string `json:"email"`
+type UserInfo struct {
 	Dni       string `json:"dni"`
 	Nombre    string `json:"nombre"`
 	Apellidop string `json:"apellidop"`
 	Apellidom string `json:"apellidom"`
 	Direccion string `json:"direccion"`
-	Role      string `json:"role,omitempty"`
 }
 
-//type User struct {
-//	Email string
-//	Dni   string
-//}
+type User struct {
+	Email    string   `json:"email"`
+	Role     string   `json:"role"`
+	UserInfo UserInfo `bson:"inline"`
+}
 
 func New(dbUser, dbPass string) *Authdb {
 	// Get client MongoDB
@@ -50,12 +49,14 @@ func New(dbUser, dbPass string) *Authdb {
 }
 
 // GetUser retrieve a user document from MongoDB
-func (a *Authdb) GetUser(email string) (bson.M, error) {
-	var result bson.M
+func (a *Authdb) GetUser(email string) (*User, error) {
+	log.Println("GetUser")
+	//var userRes bson.M
+	userRes := &User{}
 	collection := a.mongoCli.Database("usersdb").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := collection.FindOne(ctx, bson.D{{"email", email}}).Decode(&result)
+	err := collection.FindOne(ctx, bson.D{{"email", email}}).Decode(&userRes)
 	if err == mongo.ErrNoDocuments {
 		log.Println("No documents found")
 		return nil, nil // No documents found
@@ -63,10 +64,10 @@ func (a *Authdb) GetUser(email string) (bson.M, error) {
 	if err != nil {
 		return nil, err
 	}
-	//jsonData, err := json.MarshalIndent(result, "", "  ")
+	//jsonData, err := json.MarshalIndent(userRes, "", "  ")
 	log.Println("Found a single document:")
-	log.Println(result)
-	return result, nil
+	log.Println(userRes)
+	return userRes, nil
 }
 
 // CreateUser create a user document in MongoDB
