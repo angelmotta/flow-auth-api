@@ -43,6 +43,14 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+type SignupUserRequest struct {
+	Dni       string `json:"dni"`
+	Nombre    string `json:"nombre"`
+	Apellidop string `json:"apellidop"`
+	Apellidom string `json:"apellidom"`
+	Direccion string `json:"direccion"`
+}
+
 func NewAuthServer() *AuthServer {
 	log.Println("Setting AuthServer...")
 	// Prepare router
@@ -237,7 +245,7 @@ func (a *AuthServer) handleLoginGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleAuthorization handles http request to verify token
+// handleAuthorization handles http request to verify FlowApp token
 func (a *AuthServer) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	// Get token from header
 	mytoken := r.Header.Get("Authorization")
@@ -320,8 +328,52 @@ func (a *AuthServer) handleSignup(w http.ResponseWriter, r *http.Request) {
 		sendJsonResponse(w, errRes, http.StatusConflict)
 		return
 	}
-	// Register new user
-	err = a.AuthDBClient.CreateUser(email) // insert new user in DB
+	// Prepare response to user
+	//token, err := a.generateToken(email)
+	//response := loginResponse{
+	//	Token: token,
+	//	Email: email,
+	//	Role:  "customer", // retrieved from DB
+	//}
+	sendJsonResponse(w, `{}`, http.StatusOK)
+}
+
+// handleSignupUser handles http request to register a new customer
+func (a *AuthServer) handleSignupUser(w http.ResponseWriter, r *http.Request) {
+	// Get tokenId from authorization header
+	/*
+		tokenId := r.Header.Get("Authorization")
+		if tokenId == "" {
+			errRes := errorResponse{
+				Error: "token is required",
+			}
+			sendJsonResponse(w, errRes, http.StatusBadRequest)
+			return
+		}
+
+		// Validate tokenId using Google auth library client
+		isValid, email := a.isValidGoogleIdToken(tokenId)
+		if !isValid {
+			errRes := errorResponse{
+				Error: "invalid credential",
+			}
+			sendJsonResponse(w, errRes, http.StatusUnauthorized)
+			return
+		}
+		log.Println("Google IdToken is valid for: ", email)
+	*/
+	// Only for test
+	email := r.Header.Get("email")
+	if email == "" {
+		errRes := errorResponse{
+			Error: "email field in header is required",
+		}
+		sendJsonResponse(w, errRes, http.StatusBadRequest)
+		return
+	}
+
+	// Validate if email is available to use in DB
+	userResult, err := a.AuthDBClient.GetUser(email)
 	if err != nil {
 		errRes := errorResponse{
 			Error: "Servicio no disponible",
@@ -329,8 +381,50 @@ func (a *AuthServer) handleSignup(w http.ResponseWriter, r *http.Request) {
 		sendJsonResponse(w, errRes, http.StatusInternalServerError)
 		return
 	}
+	if userResult != nil {
+		errRes := errorResponse{
+			Error: "Usuario ya esta registrado",
+		}
+		sendJsonResponse(w, errRes, http.StatusConflict)
+		return
+	}
 
-	// Prepare response to user
+	// Get request from body and unmarshall into User struct
+	var userRequest SignupUserRequest
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	err = dec.Decode(&userRequest)
+	if err != nil {
+		log.Println(err.Error())
+		errRes := errorResponse{
+			Error: "invalid request",
+		}
+		sendJsonResponse(w, errRes, http.StatusBadRequest)
+		return
+	}
+	// Validate userRequest struct
+	log.Printf("User: %v", userRequest)
+	err = validateSignupRequest(userRequest)
+	if err != nil {
+		errRes := errorResponse{
+			Error: err.Error(),
+		}
+		sendJsonResponse(w, errRes, http.StatusBadRequest)
+		return
+	}
+
+	/*
+		// Register new userRequest
+		err = a.AuthDBClient.CreateUser(userRequest) // insert new userRequest in DB
+		if err != nil {
+			errRes := errorResponse{
+				Error: "Servicio no disponible",
+			}
+			sendJsonResponse(w, errRes, http.StatusInternalServerError)
+			return
+		}
+	*/
+	// Prepare response to userRequest
 	token, err := a.generateToken(email)
 	response := loginResponse{
 		Token: token,
@@ -356,4 +450,19 @@ func sendJsonResponse(w http.ResponseWriter, response interface{}, statusCode in
 		log.Printf("Error sending response: %v", err.Error())
 		return
 	}
+}
+
+func validateSignupRequest(user SignupUserRequest) error {
+	// create null Error
+	var err error
+	if user.Nombre == "" {
+		err = errors.New("Nombre is required")
+	} else if user.Apellidop == "" {
+		err = errors.New("Apellidop is required")
+	} else if user.Apellidom == "" {
+		err = errors.New("Apellidom is required")
+	} else if user.Direccion == "" {
+		err = errors.New("Direccion is required")
+	}
+	return err
 }

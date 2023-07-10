@@ -15,8 +15,19 @@ type Authdb struct {
 }
 
 type User struct {
-	Email string
+	Email     string `json:"email"`
+	Dni       string `json:"dni"`
+	Nombre    string `json:"nombre"`
+	Apellidop string `json:"apellidop"`
+	Apellidom string `json:"apellidom"`
+	Direccion string `json:"direccion"`
+	Role      string `json:"role,omitempty"`
 }
+
+//type User struct {
+//	Email string
+//	Dni   string
+//}
 
 func New(dbUser, dbPass string) *Authdb {
 	// Get client MongoDB
@@ -59,13 +70,13 @@ func (a *Authdb) GetUser(email string) (bson.M, error) {
 }
 
 // CreateUser create a user document in MongoDB
-func (a *Authdb) CreateUser(email string) error {
-	user := User{Email: email}
+func (a *Authdb) CreateUser(newUser User) error {
+	//user := User{Email: email}
 	collection := a.mongoCli.Database("usersdb").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	res, err := collection.InsertOne(ctx, user)
+	res, err := collection.InsertOne(ctx, newUser)
 	if err != nil {
 		log.Printf("Error creating user: %v", err)
 		return err
