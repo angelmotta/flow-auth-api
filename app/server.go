@@ -379,7 +379,7 @@ func (a *AuthServer) handleSignupUser(w http.ResponseWriter, r *http.Request) {
 		sendJsonResponse(w, errRes, http.StatusConflict)
 		return
 	}
-
+	log.Printf("Email %v is available to use", email)
 	// Get request from body and unmarshall into User struct
 	var userRequest authdb.UserInfo
 	dec := json.NewDecoder(r.Body)
@@ -450,7 +450,9 @@ func sendJsonResponse(w http.ResponseWriter, response interface{}, statusCode in
 func validateSignupRequest(user authdb.UserInfo) error {
 	// create null Error
 	var err error
-	if user.Nombre == "" {
+	if user.Dni == "" {
+		err = errors.New("DNI is required")
+	} else if user.Nombre == "" {
 		err = errors.New("Nombre is required")
 	} else if user.Apellidop == "" {
 		err = errors.New("Apellidop is required")
