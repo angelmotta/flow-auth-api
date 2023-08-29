@@ -28,9 +28,10 @@ type User struct {
 	UserInfo UserInfo `bson:"inline"`
 }
 
-func New(dbUser, dbPass string) *Authdb {
+func New(dbUser, dbPass, dbHost string) *Authdb {
 	// Get client MongoDB
-	uriMongoDB := "mongodb+srv://" + dbUser + ":" + dbPass + "@cluster0.jqgmumw.mongodb.net/?retryWrites=true&w=majority"
+	//uriMongoDB := "mongodb+srv://" + dbUser + ":" + dbPass + "@cluster0.jqgmumw.mongodb.net/?retryWrites=true&w=majority"
+	uriMongoDB := "mongodb+srv://" + dbUser + ":" + dbPass + dbHost
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

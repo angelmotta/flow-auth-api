@@ -69,7 +69,8 @@ func NewAuthServer() *AuthServer {
 	// Setup DB connection and assign it to AuthServer
 	mongoUser := a.Config.MongoUser
 	mongoPass := a.Config.MongoPass
-	dbConn := authdb.New(mongoUser, mongoPass)
+	mongoHost := a.Config.MongoHost
+	dbConn := authdb.New(mongoUser, mongoPass, mongoHost)
 	a.AuthDBClient = dbConn
 	// Register routes into AuthServer
 	a.routes()

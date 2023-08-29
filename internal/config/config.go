@@ -11,6 +11,7 @@ type Config struct {
 	GClientId    string
 	MongoUser    string
 	MongoPass    string
+	MongoHost    string
 }
 
 func (c *Config) init() {
@@ -19,6 +20,7 @@ func (c *Config) init() {
 	c.GClientId = "535433429806-oc8egpmgdvuot4bic0pc900q3pl3i7rv.apps.googleusercontent.com"
 	c.MongoUser = getEnvStr("MONGO_USER")
 	c.MongoPass = getEnvStr("MONGO_PASS")
+	c.MongoHost = getEnvStr("MONGO_HOST")
 }
 
 func GetConfig() *Config {
